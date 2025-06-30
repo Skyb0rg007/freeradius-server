@@ -105,6 +105,8 @@ fr_dict_attr_t const *attr_tls_certificate_common_name;
 fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_dns;
 fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_email;
 fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_upn;
+fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_hwType;
+fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_hwSerialNum;
 fr_dict_attr_t const *attr_tls_certificate_x509v3_extended_key_usage;
 fr_dict_attr_t const *attr_tls_certificate_x509v3_subject_key_identifier;
 fr_dict_attr_t const *attr_tls_certificate_x509v3_authority_key_identifier;
@@ -152,6 +154,8 @@ fr_dict_attr_autoload_t tls_dict_attr[] = {
 	{ .out = &attr_tls_certificate_subject_alt_name_dns, .name = "TLS-Certificate.Subject-Alt-Name-Dns", .type = FR_TYPE_STRING, .dict = &dict_freeradius },
 	{ .out = &attr_tls_certificate_subject_alt_name_email, .name = "TLS-Certificate.Subject-Alt-Name-Email", .type = FR_TYPE_STRING, .dict = &dict_freeradius },
 	{ .out = &attr_tls_certificate_subject_alt_name_upn, .name = "TLS-Certificate.Subject-Alt-Name-Upn", .type = FR_TYPE_STRING, .dict = &dict_freeradius },
+	{ .out = &attr_tls_certificate_subject_alt_name_hwType, .name = "TLS-Certificate.Subject-Alt-Name-HardwareModule.Type", .type = FR_TYPE_STRING, .dict = &dict_freeradius },
+	{ .out = &attr_tls_certificate_subject_alt_name_hwSerialNum, .name = "TLS-Certificate.Subject-Alt-Name-HardwareModule.Serial", .type = FR_TYPE_OCTETS, .dict = &dict_freeradius },
 	{ .out = &attr_tls_certificate_x509v3_extended_key_usage, .name = "TLS-Certificate.X509v3-Extended-Key-Usage", .type = FR_TYPE_STRING, .dict = &dict_freeradius },
 	{ .out = &attr_tls_certificate_x509v3_subject_key_identifier, .name = "TLS-Certificate.X509v3-Subject-Key-Identifier", .type = FR_TYPE_STRING, .dict = &dict_freeradius },
 	{ .out = &attr_tls_certificate_x509v3_authority_key_identifier, .name = "TLS-Certificate.X509v3-Authority-Key-Identifier", .type = FR_TYPE_STRING, .dict = &dict_freeradius },

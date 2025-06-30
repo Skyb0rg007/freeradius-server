@@ -45,6 +45,8 @@ extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_common_name;
 extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_dns;
 extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_email;
 extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_upn;
+extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_hwType;
+extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_subject_alt_name_hwSerialNum;
 extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_x509v3_extended_key_usage;
 extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_x509v3_subject_key_identifier;
 extern HIDDEN fr_dict_attr_t const *attr_tls_certificate_x509v3_authority_key_identifier;

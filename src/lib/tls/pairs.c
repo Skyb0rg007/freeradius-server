@@ -41,6 +41,22 @@ USES_APPLE_DEPRECATED_API	/* OpenSSL API has been deprecated by Apple */
 
 #include <openssl/x509v3.h>
 #include <openssl/ssl.h>
+#include <openssl/asn1t.h>
+
+/* RFC 4108
+ * HardwareModuleName ::= SEQUENCE {
+ *   hwType OBJECT IDENTIFIER,
+ *   hwSerialNum OCTET STRING }
+ */
+typedef struct {
+	ASN1_OBJECT *hwType;
+	ASN1_OCTET_STRING *hwSerialNum;
+} HardwareModuleName;
+
+ASN1_SEQUENCE(HardwareModuleName) = {
+	ASN1_SIMPLE(HardwareModuleName, hwType, ASN1_OBJECT),
+	ASN1_SIMPLE(HardwareModuleName, hwSerialNum, ASN1_OCTET_STRING)
+} static_ASN1_SEQUENCE_END(HardwareModuleName)
 
 DIAG_OFF(DIAG_UNKNOWN_PRAGMAS)
 DIAG_OFF(used-but-marked-unused)	/* fix spurious warnings for sk macros */
@@ -81,19 +97,41 @@ static bool tls_session_pairs_from_san(fr_pair_list_t *pair_list, TALLOC_CTX *ct
 		case GEN_OTHERNAME:
 			switch (OBJ_obj2nid(name->d.otherName->type_id)) {
 				/* MS UPN */
-				case NID_ms_upn:
+				case NID_ms_upn: {
 					/* we've got a UPN - Must be ASN1-encoded UTF8 string */
-					if (name->d.otherName->value->type == V_ASN1_UTF8STRING) {
-						MEM(fr_pair_append_by_da(ctx, &vp, pair_list,
-									 attr_tls_certificate_subject_alt_name_upn) == 0);
-						MEM(fr_pair_value_bstrndup(vp,
-									   (char const *)ASN1_STRING_get0_data(name->d.otherName->value->value.utf8string),
-									   ASN1_STRING_length(name->d.otherName->value->value.utf8string),
-									   true) == 0);
+					if (ASN1_TYPE_get(name->d.otherName->value) != V_ASN1_UTF8STRING) {
+						RWARN("Invalid UPN in Subject Alt Name (should be UTF-8)");
 						break;
 					}
-					RWARN("Invalid UPN in Subject Alt Name (should be UTF-8)");
+					MEM(fr_pair_append_by_da(ctx, &vp, pair_list,
+								 attr_tls_certificate_subject_alt_name_upn) == 0);
+					MEM(fr_pair_value_bstrndup(vp,
+								   (char const *)ASN1_STRING_get0_data(name->d.otherName->value->value.utf8string),
+								   ASN1_STRING_length(name->d.otherName->value->value.utf8string),
+								   true) == 0);
 					break;
+				}
+				/* Hardware Module Name */
+				case NID_id_on_hardwareModuleName: {
+					HardwareModuleName *hw = ASN1_TYPE_unpack_sequence(ASN1_ITEM_rptr(HardwareModuleName), name->d.otherName->value);
+					if (hw == NULL) {
+						RWARN("Invalid HardwareModuleName in Subject Alt Name");
+						break;
+					}
+					MEM(fr_pair_append_by_da(ctx, &vp, pair_list,
+								 attr_tls_certificate_subject_alt_name_hwType) == 0);
+					MEM(fr_pair_value_bstrndup(vp,
+								   (char const *)OBJ_get0_data(hw->hwType),
+								   OBJ_length(hw->hwType),
+								   true) == 0);
+					MEM(fr_pair_append_by_da(ctx, &vp, pair_list,
+								 attr_tls_certificate_subject_alt_name_hwSerialNum) == 0);
+					MEM(fr_pair_value_bstrndup(vp,
+								   (char const *)ASN1_STRING_get0_data(hw->hwSerialNum),
+								   ASN1_STRING_length(hw->hwSerialNum),
+								   true) == 0);
+					break;
+				}
 			}
 			break;
 #endif	/* GEN_OTHERNAME */
@@ -138,10 +176,10 @@ static bool tls_session_pairs_from_crl(fr_pair_list_t *pair_list, TALLOC_CTX *ct
 
 			if (name->type != GEN_URI) continue;
 			MEM(fr_pair_append_by_da(ctx, &vp, pair_list,
-						 attr_tls_certificate_x509v3_crl_distribution_points) == 0);
+						attr_tls_certificate_x509v3_crl_distribution_points) == 0);
 			MEM(fr_pair_value_strdup(vp,
-						 (char const *)ASN1_STRING_get0_data(name->d.uniformResourceIdentifier),
-						 true) == 0);
+						(char const *)ASN1_STRING_get0_data(name->d.uniformResourceIdentifier),
+						true) == 0);
 		}
 	}
 
@@ -183,7 +221,7 @@ int fr_tls_session_pairs_from_x509_cert(fr_pair_list_t *pair_list, TALLOC_CTX *c
 					X509_get_subject_name(cert), 0, XN_FLAG_ONELINE) < 0)) {
 		fr_tls_bio_dbuff_thread_local_clear();
 		fr_tls_log(request, "Failed retrieving certificate subject");
-	error:
+error:
 		fr_pair_list_free(pair_list);
 		return -1;
 	}
@@ -195,7 +233,7 @@ int fr_tls_session_pairs_from_x509_cert(fr_pair_list_t *pair_list, TALLOC_CTX *c
 	 *	Common name
 	 */
 	slen = X509_NAME_get_text_by_NID(X509_get_subject_name(cert),
-					 NID_commonName, NULL, 0);
+			NID_commonName, NULL, 0);
 	if (slen > 0) {
 		char *cn;
 
@@ -220,8 +258,8 @@ int fr_tls_session_pairs_from_x509_cert(fr_pair_list_t *pair_list, TALLOC_CTX *c
 
 		MEM(fr_pair_append_by_da(ctx, &vp, pair_list, attr_tls_certificate_signature) == 0);
 		MEM(fr_pair_value_memdup(vp,
-					 (uint8_t const *)ASN1_STRING_get0_data(sig),
-					 ASN1_STRING_length(sig), true) == 0);
+					(uint8_t const *)ASN1_STRING_get0_data(sig),
+					ASN1_STRING_length(sig), true) == 0);
 
 		OBJ_obj2txt(buff, sizeof(buff), alg->algorithm, 0);
 		MEM(fr_pair_append_by_da(ctx, &vp, pair_list, attr_tls_certificate_signature_algorithm) == 0);
@@ -354,8 +392,8 @@ int fr_tls_session_pairs_from_x509_cert(fr_pair_list_t *pair_list, TALLOC_CTX *c
 
 			if (i2a_ASN1_OBJECT(bio, obj) <= 0) {
 				RPWDEBUG("Skipping X509 Extension (%i) conversion to attribute. "
-					 "Conversion from ASN1 failed...", i);
-			again:
+						"Conversion from ASN1 failed...", i);
+again:
 				fr_tls_bio_dbuff_reset(bd);
 				continue;
 			}
@@ -366,8 +404,8 @@ int fr_tls_session_pairs_from_x509_cert(fr_pair_list_t *pair_list, TALLOC_CTX *c
 			 *	All disallowed chars get mashed to '-'
 			 */
 			for (p = (char *)fr_dbuff_current(out);
-			     p < (char *)fr_dbuff_end(out);
-			     p++) if (!fr_dict_attr_allowed_chars[(uint8_t)*p]) *p = '-';
+					p < (char *)fr_dbuff_end(out);
+					p++) if (!fr_dict_attr_allowed_chars[(uint8_t)*p]) *p = '-';
 
 			/*
 			 *	Terminate the buffer (after char replacement,
@@ -384,9 +422,9 @@ int fr_tls_session_pairs_from_x509_cert(fr_pair_list_t *pair_list, TALLOC_CTX *c
 
 			if (!da) {
 				RWDEBUG3("Skipping attribute \"%pV\": "
-					 "Add a dictionary definition if you want to access it",
-					 fr_box_strvalue_len((char *)fr_dbuff_current(out),
-					  		     fr_dbuff_remaining(out)));
+						"Add a dictionary definition if you want to access it",
+						fr_box_strvalue_len((char *)fr_dbuff_current(out),
+							fr_dbuff_remaining(out)));
 				fr_strerror_clear();	/* Don't leave spurious errors from failed resolution */
 				goto again;
 			}
@@ -400,10 +438,10 @@ int fr_tls_session_pairs_from_x509_cert(fr_pair_list_t *pair_list, TALLOC_CTX *c
 
 			MEM(vp = fr_pair_afrom_da(ctx, da));
 			if (fr_pair_value_from_str(vp, (char *)fr_dbuff_current(out), fr_dbuff_remaining(out),
-						   NULL, true) < 0) {
+						NULL, true) < 0) {
 				RPWDEBUG3("Skipping: %s += \"%pV\"",
-					  da->name, fr_box_strvalue_len((char *)fr_dbuff_current(out),
-					  				fr_dbuff_remaining(out)));
+						da->name, fr_box_strvalue_len((char *)fr_dbuff_current(out),
+							fr_dbuff_remaining(out)));
 				talloc_free(vp);
 				goto again;
 			}
