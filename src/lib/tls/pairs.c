@@ -79,25 +79,27 @@ static bool tls_session_pairs_from_san(fr_pair_list_t *pair_list, TALLOC_CTX *ct
 #endif	/* GEN_DNS */
 #ifdef GEN_OTHERNAME
 		case GEN_OTHERNAME:
-			/* look for a MS UPN */
-			if (NID_ms_upn != OBJ_obj2nid(name->d.otherName->type_id)) break;
-
-			/* we've got a UPN - Must be ASN1-encoded UTF8 string */
-			if (name->d.otherName->value->type == V_ASN1_UTF8STRING) {
-				MEM(fr_pair_append_by_da(ctx, &vp, pair_list,
-							 attr_tls_certificate_subject_alt_name_upn) == 0);
-				MEM(fr_pair_value_bstrndup(vp,
-							   (char const *)ASN1_STRING_get0_data(name->d.otherName->value->value.utf8string),
-							   ASN1_STRING_length(name->d.otherName->value->value.utf8string),
-							   true) == 0);
-				break;
+			switch (OBJ_obj2nid(name->d.otherName->type_id)) {
+				/* MS UPN */
+				case NID_ms_upn:
+					/* we've got a UPN - Must be ASN1-encoded UTF8 string */
+					if (name->d.otherName->value->type == V_ASN1_UTF8STRING) {
+						MEM(fr_pair_append_by_da(ctx, &vp, pair_list,
+									 attr_tls_certificate_subject_alt_name_upn) == 0);
+						MEM(fr_pair_value_bstrndup(vp,
+									   (char const *)ASN1_STRING_get0_data(name->d.otherName->value->value.utf8string),
+									   ASN1_STRING_length(name->d.otherName->value->value.utf8string),
+									   true) == 0);
+						break;
+					}
+					RWARN("Invalid UPN in Subject Alt Name (should be UTF-8)");
+					break;
 			}
-			RWARN("Invalid UPN in Subject Alt Name (should be UTF-8)");
-				break;
+			break;
 #endif	/* GEN_OTHERNAME */
-			default:
-				/* XXX TODO handle other SAN types */
-				break;
+		default:
+			/* XXX TODO handle other SAN types */
+			break;
 		}
 	}
 	if (names != NULL) GENERAL_NAMES_free(names);
